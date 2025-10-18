@@ -1,14 +1,92 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>夢コルホーズHD 打刻用ページ</title>
-    <link rel="stylesheet" href="./css/common.css" type="text/css">
-    <script src="/js/function.js"></script>
-</head>
-<body>
-    <p>これは打刻用ページです。</p>
-    <p>テストです。</p>
-</body>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>打刻 | 勤怠</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 24px; }
+  .card { max-width: 560px; padding: 16px; border: 1px solid #ddd; border-radius: 12px; }
+  label { display:block; margin: 12px 0 4px; }
+  button { padding: 10px 16px; margin-right: 8px; }
+  .ok { color: #0a7; }
+  .err { color: #c00; }
+</style>
+<div class="card">
+  <h1>打刻</h1>
+  <label>ユーザー</label>
+  <select id="user"></select>
+
+  <label>備考（任意）</label>
+  <input id="note" placeholder="客先直行 / 早退 など" style="width:100%;padding:8px;">
+
+  <div style="margin-top:12px">
+    <button id="inBtn">出勤</button>
+    <button id="outBtn">退勤</button>
+  </div>
+
+  <p id="msg"></p>
+  <hr>
+  <p><a href="./admin.html">全員の勤怠を見る</a></p>
+</div>
+
+<script>
+  // ===== 設定 =====
+  const API = '<<ここに Apps Script の Web アプリ URL>>';
+  // 社員5人分の "表示名:個別トークン" を管理者だけが埋めてください
+  const USERS = {
+    "Aさん": "<<Aさんのtoken>>",
+    "Bさん": "<<Bさんのtoken>>",
+    "Cさん": "<<Cさんのtoken>>",
+    "Dさん": "<<Dさんのtoken>>",
+    "Eさん": "<<Eさんのtoken>>",
+  };
+  // ===============
+
+  const userSel = document.getElementById('user');
+  const noteEl = document.getElementById('note');
+  const msg = document.getElementById('msg');
+
+  // ユーザー選択を構築
+  for (const name of Object.keys(USERS)) {
+    const opt = document.createElement('option');
+    opt.value = name; opt.textContent = name;
+    userSel.appendChild(opt);
+  }
+  // 前回選択を復元
+  const saved = localStorage.getItem('kintai_user');
+  if (saved && USERS[saved]) userSel.value = saved;
+  userSel.addEventListener('change', ()=> localStorage.setItem('kintai_user', userSel.value));
+
+  async function clock(action) {
+    const user = userSel.value;
+    if (!user) return show('ユーザーを選んでください', true);
+    const token = USERS[user];
+
+    const body = { user, action, note: noteEl.value || '', token };
+    const url = API; // POST /exec
+    try {
+      disable(true);
+      const res = await fetch(url, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'unknown');
+      show(`✅ ${action==='in'?'出勤':'退勤'}しました (${data.timestamp})`);
+      noteEl.value = '';
+    } catch (e) {
+      show('エラー: ' + e.message, true);
+    } finally {
+      disable(false);
+    }
+  }
+  function show(text, isErr=false){ msg.textContent = text; msg.className = isErr?'err':'ok'; }
+  function disable(b){ inBtn.disabled=outBtn.disabled=b; }
+
+  const inBtn = document.getElementById('inBtn');
+  const outBtn = document.getElementById('outBtn');
+  inBtn.onclick = ()=> clock('in');
+  outBtn.onclick = ()=> clock('out');
+</script>
 </html>
